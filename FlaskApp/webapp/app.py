@@ -1,40 +1,49 @@
 from flask import Flask, request, jsonify
-
 import pandas as pd
-from sklearn.externals import joblib
+import numpy as np
+import joblib
 from sklearn.preprocessing import StandardScaler
 
 app = Flask(__name__)
 
-def scale(payload):
+MODEL_PATH = "boston_housing_prediction.joblib"
+# Load once at startup (faster; avoids repeated disk I/O)
+clf = joblib.load(MODEL_PATH)
+
+def scale(payload: pd.DataFrame):
+    # Keeping original behavior (fit on payload) for compatibility with legacy script
     scaler = StandardScaler().fit(payload)
     return scaler.transform(payload)
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
     return "<h3>Sklearn Prediction Container</h3>"
 
-@app.route("/predict", methods=['POST'])
+@app.route("/predict", methods=["POST"])
 def predict():
     """
     Input sample:
-
         {
             "CHAS": { "0": 0 }, "RM": { "0": 6.575 },
             "TAX": { "0": 296 }, "PTRATIO": { "0": 15.3 },
             "B": { "0": 396.9 }, "LSTAT": { "0": 4.98 }
         }
-
     Output sample:
-
         { "prediction": [ 20.35373177134412 ] }
     """
+    data = request.get_json(force=True)
+    X = pd.DataFrame(data)
 
-    clf = joblib.load("boston_housing_prediction.joblib")
-    inference_payload = pd.DataFrame(request.json)
-    scaled_payload = scale(inference_payload)
-    prediction = list(clf.predict(scaled_payload))
-    return jsonify({'prediction': prediction})
+    try:
+        preds = clf.predict(X)
+    except Exception:
+        # Fallback to the book’s pattern (scale on the fly)
+        X_scaled = scale(X)
+        preds = clf.predict(X_scaled)
+
+    preds = [float(p) for p in np.ravel(preds)]
+    return jsonify({"prediction": preds})
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Keep debug for local use; remove/disable for production
+    app.run(host="0.0.0.0", port=5000, debug=True)
