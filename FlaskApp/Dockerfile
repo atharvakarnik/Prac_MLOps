@@ -1,17 +1,19 @@
-FROM python:3.7
+FROM python:3.11-slim
 
 ARG VERSION
-
 LABEL org.label-schema.version=$VERSION
 
-COPY ./requirements.txt /webapp/requirements.txt
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-WORKDIR /webapp
+WORKDIR /app
 
-RUN pip install -r requirements.txt
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-COPY webapp/* /webapp
+COPY webapp/ /app/
 
-ENTRYPOINT [ "python" ]
-
-CMD [ "app.py" ]
+EXPOSE 5000
+ENTRYPOINT ["python"]
+CMD ["app.py"]
